@@ -1,3 +1,6 @@
+# Code is provided by Path-MGCN
+# Reference: Zhou Q, Li C, Chen C, et al. Path-MGCN: a pathway activity-based multi-view graph convolutional network for determining spatial domains[J]. Briefings in Bioinformatics, 2025, 26(4): bbaf365.
+
 check_and_install <- function(pkgs, bioc=FALSE) {
   for (pkg in pkgs) {
     if (!requireNamespace(pkg, quietly = TRUE)) {
