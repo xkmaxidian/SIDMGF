@@ -26,7 +26,6 @@ def spatial_construct_graph(adata,
     coords = adata.obsm['spatial']
     n = coords.shape[0]
 
-    # 拟合邻居搜索器
     if radius is not None:
         nbrs = NearestNeighbors(radius=radius, metric=metric).fit(coords)
         distances, indices = nbrs.radius_neighbors(coords, return_distance=True)
@@ -64,14 +63,11 @@ def spatial_construct_graph(adata,
     return sadj, graph_nei
 
 
-def features_construct_graph(features, k=15, mode="connectivity", metric="cosine"):
-    A = kneighbors_graph(features, k + 1, mode=mode, metric=metric, include_self=True)
-    A = A.toarray()
-    row, col = np.diag_indices_from(A)
-    A[row, col] = 0
-    fadj = sp.coo_matrix(A, dtype=np.float32)
-    fadj = fadj + fadj.T.multiply(fadj.T > fadj) - fadj.multiply(fadj.T > fadj)
-    return fadj
+def features_construct_graph(features, k=15, mode="distance", metric="cosine"):
+    A = kneighbors_graph(features, k, mode=mode, metric=metric, include_self=False).tocoo()
+    A.data = 1.0 - A.data if mode == "distance" else A.data
+    A = A.maximum(A.T)
+    return A.astype(np.float32)
 
 
 def get_signal(adata,
