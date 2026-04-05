@@ -13,6 +13,7 @@ from typing import Optional
 from scipy.optimize import linear_sum_assignment
 from sklearn.metrics import accuracy_score, adjusted_rand_score, adjusted_mutual_info_score, \
     normalized_mutual_info_score, homogeneity_score
+import gseapy as gp
 
 
 def spatial_construct_graph(adata,
@@ -72,43 +73,31 @@ def features_construct_graph(features, k=15, mode="distance", metric="cosine"):
 
 def get_signal(adata,
                prior_file,
-               path,
-               r_path="C:/Program Files/R/R-4.3.1/bin/x64/Rscript.exe",
-               r_script="GSVA_scores.R",
                threads=80):
-    if os.path.exists(path + '/pathway_activity.csv'):
-        pathway_activity = pd.read_csv(path + '/pathway_activity.csv', index_col=0)
-        print('Using existing signal activity file...')
-        return pathway_activity
-
     expr_df = pd.DataFrame(
         adata.X.toarray().T if sp.issparse(adata.X) else adata.X.T,
         index=adata.var_names.astype(str),
         columns=adata.obs_names.astype(str)
     )
-    tf_expr = tempfile.NamedTemporaryFile(delete=False, suffix=".tsv")
-    expr_df.to_csv(tf_expr.name, sep="\t")
-    tf_expr.close()
-    tf_out = tempfile.NamedTemporaryFile(delete=False, suffix=".tsv")
-    tf_out.close()
 
-    cmd = [
-        r_path, r_script,
-        "--expr", tf_expr.name,
-        "--gmt", prior_file,
-        "--out", tf_out.name,
-        "--threads", str(threads)
-    ]
-    try:
-        subprocess.run(cmd, check=True)
-    finally:
-        os.remove(tf_expr.name)
+    print(f"Running ssGSEA with {threads} threads...")
+    ssgsea_res = gp.ssgsea(
+        data=expr_df,
+        gene_sets=prior_file,
+        outdir=None,
+        sample_norm_method='rank',
+        min_size=10,
+        max_size=500,
+        processes=threads,
+        no_plot=True
+    )
 
-    pathway_activity = pd.read_csv(tf_out.name, sep="\t", index_col=0)
-    os.remove(tf_out.name)
-    pathway_activity = pathway_activity.loc[adata.obs_names].astype("float32")
-    pathway_activity.to_csv(path + 'pathway_activity.csv')
-    return pathway_activity
+    print("Formatting output...")
+    signal = ssgsea_res.res2d
+    signal_activity = signal.pivot(index='Name', columns='Term', values='NES')
+
+    print("ssGSEA calculation completed successfully.")
+    return signal_activity
 
 
 def normalize_sparse_matrix(mx):
